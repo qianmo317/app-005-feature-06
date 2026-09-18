@@ -6,6 +6,7 @@ import {
   AppstoreOutlined,
   CalendarOutlined,
   ScheduleOutlined,
+  ClockCircleOutlined,
   UserOutlined,
   LogoutOutlined,
   SettingOutlined,
@@ -48,6 +49,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: '/schedules',
       icon: <ScheduleOutlined />,
       label: '员工排班',
+    },
+    {
+      key: '/attendance',
+      icon: <ClockCircleOutlined />,
+      label: '考勤管理',
     },
     {
       key: '/employees',

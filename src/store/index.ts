@@ -52,14 +52,52 @@ interface AppState {
   commissions: Commission[];
   waitList: WaitList[];
   initialized: boolean;
+  version: number;
 }
 
 const STORAGE_KEY = 'app_state';
+// 数据结构版本：考勤等结构变更时递增，旧数据自动重建
+const DATA_VERSION = 2;
+
+const buildInitialState = (): AppState => {
+  const customers = mockCustomers();
+  const customerIds = customers.map(c => c.id);
+  const services = mockServices() as Service[];
+  const serviceIds = services.map(s => s.id);
+  const employees = mockEmployees() as Employee[];
+  const employeeIds = employees.map(e => e.id);
+  const packages = mockPackages() as Package[];
+  // 考勤与排班只针对当班的美容师/技师
+  const staffIds = employees
+    .filter(e => e.role === 'beautician' || e.role === 'technician')
+    .map(e => e.id);
+  const schedules = mockSchedules(staffIds);
+
+  return {
+    customers,
+    skinAnalyses: mockSkinAnalyses(customerIds),
+    allergies: mockAllergies(customerIds),
+    memberships: mockMemberships(customerIds),
+    services,
+    packages,
+    packageItems: mockPackageItems(packages),
+    employees,
+    appointments: mockAppointments(customerIds, serviceIds, employeeIds),
+    serviceRecords: mockServiceRecords(customerIds, serviceIds, employeeIds),
+    schedules,
+    reviews: mockReviews(customerIds, employeeIds, serviceIds),
+    attendance: mockAttendance(schedules),
+    commissions: mockCommissions(employeeIds),
+    waitList: mockWaitList(customerIds, serviceIds),
+    initialized: true,
+    version: DATA_VERSION
+  };
+};
 
 const loadState = (): AppState => {
   try {
     const saved = storage.get<AppState>(STORAGE_KEY);
-    if (saved && saved.initialized) {
+    if (saved && saved.initialized && saved.version === DATA_VERSION) {
       // Verify data integrity
       const firstCustomer = saved.customers[0];
       if (firstCustomer && firstCustomer.avatar && firstCustomer.avatar.includes('data:image/svg+xml;base64,')) {
@@ -77,32 +115,7 @@ const loadState = (): AppState => {
     console.log('Loading fresh data...');
   }
 
-  const customers = mockCustomers();
-  const customerIds = customers.map(c => c.id);
-  const services = mockServices() as Service[];
-  const serviceIds = services.map(s => s.id);
-  const employees = mockEmployees() as Employee[];
-  const employeeIds = employees.map(e => e.id);
-  const packages = mockPackages() as Package[];
-
-  return {
-    customers,
-    skinAnalyses: mockSkinAnalyses(customerIds),
-    allergies: mockAllergies(customerIds),
-    memberships: mockMemberships(customerIds),
-    services,
-    packages,
-    packageItems: mockPackageItems(packages),
-    employees,
-    appointments: mockAppointments(customerIds, serviceIds, employeeIds),
-    serviceRecords: mockServiceRecords(customerIds, serviceIds, employeeIds),
-    schedules: mockSchedules(employeeIds),
-    reviews: mockReviews(customerIds, employeeIds, serviceIds),
-    attendance: mockAttendance(employeeIds),
-    commissions: mockCommissions(employeeIds),
-    waitList: mockWaitList(customerIds, serviceIds),
-    initialized: true
-  };
+  return buildInitialState();
 };
 
 const initialState: AppState = loadState();
@@ -210,6 +223,36 @@ const appSlice = createSlice({
       }
       saveState(state);
     },
+    addAttendance: (state, action: PayloadAction<Attendance>) => {
+      // 同一天同一个人只能有一条考勤
+      const exists = state.attendance.some(
+        a => a.employeeId === action.payload.employeeId && a.date === action.payload.date
+      );
+      if (!exists) {
+        state.attendance.unshift(action.payload);
+        saveState(state);
+      }
+    },
+    addAttendanceBatch: (state, action: PayloadAction<Attendance[]>) => {
+      let changed = false;
+      action.payload.forEach(record => {
+        const exists = state.attendance.some(
+          a => a.employeeId === record.employeeId && a.date === record.date
+        );
+        if (!exists) {
+          state.attendance.unshift(record);
+          changed = true;
+        }
+      });
+      if (changed) saveState(state);
+    },
+    updateAttendance: (state, action: PayloadAction<Attendance>) => {
+      const index = state.attendance.findIndex(a => a.id === action.payload.id);
+      if (index !== -1) {
+        state.attendance[index] = action.payload;
+        saveState(state);
+      }
+    },
     addWaitList: (state, action: PayloadAction<WaitList>) => {
       state.waitList.unshift(action.payload);
       saveState(state);
@@ -260,6 +303,9 @@ export const {
   addEmployee,
   updateEmployee,
   updateSchedule,
+  addAttendance,
+  addAttendanceBatch,
+  updateAttendance,
   addWaitList,
   updateWaitList,
   deleteWaitList,

@@ -275,10 +275,15 @@ export const mockSchedules = (employeeIds: string[]) => {
   const schedules = [];
   const shiftTypes = ['morning', 'afternoon', 'full_day', 'off'];
 
-  for (let i = 0; i < 14; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - 7 + i);
-    const dateStr = date.toISOString().split('T')[0];
+  // 生成当前整月的排班（月初 ~ 月末）
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
     employeeIds.forEach((employeeId) => {
       const shiftType = shiftTypes[Random.integer(0, 3)];
@@ -346,38 +351,57 @@ export const mockReviews = (
   return reviews;
 };
 
-export const mockAttendance = (employeeIds: string[]) => {
+// 'HH:mm' 加/减分钟，返回 'HH:mm'
+const shiftMinutes = (time: string, offset: number): string => {
+  const [h, m] = time.split(':').map(Number);
+  const total = Math.max(0, Math.min(23 * 60 + 59, h * 60 + m + offset));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+// 按排班派生考勤：当班（非休息）且日期不超过今天才生成，打卡时间与班次吻合
+export const mockAttendance = (
+  schedules: { employeeId: string; date: string; shiftType: string; startTime: string; endTime: string }[]
+) => {
   const records = [];
-  const statuses = ['present', 'present', 'present', 'present', 'late', 'leave', 'absent'];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  for (let i = 0; i < 30; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - 30 + i);
-    const dateStr = date.toISOString().split('T')[0];
+  schedules.forEach((schedule) => {
+    if (schedule.shiftType === 'off' || schedule.date > today) return;
 
-    employeeIds.forEach((employeeId) => {
-      const status = statuses[Random.integer(0, 6)];
-      let checkIn = '--';
-      let checkOut = '--';
+    const rand = Math.random();
+    let status = 'present';
+    let checkIn = '--';
+    let checkOut = '--';
 
-      if (status === 'present') {
-        checkIn = `09:0${Random.integer(0, 9)}`;
-        checkOut = `18:0${Random.integer(0, 9)}`;
-      } else if (status === 'late') {
-        checkIn = `09:${Random.integer(15, 59)}`;
-        checkOut = `18:0${Random.integer(0, 9)}`;
-      }
+    if (rand < 0.82) {
+      // 出勤：班次开始前 0~15 分钟打卡
+      status = 'present';
+      checkIn = shiftMinutes(schedule.startTime, -Random.integer(0, 15));
+      checkOut = shiftMinutes(schedule.endTime, Random.integer(0, 20));
+    } else if (rand < 0.9) {
+      // 迟到：班次开始后 5~45 分钟打卡
+      status = 'late';
+      checkIn = shiftMinutes(schedule.startTime, Random.integer(5, 45));
+      checkOut = shiftMinutes(schedule.endTime, Random.integer(0, 20));
+    } else if (rand < 0.95) {
+      status = 'leave';
+    } else {
+      status = 'absent';
+    }
 
-      records.push({
-        id: `AT${String(records.length + 1).padStart(6, '0')}`,
-        employeeId,
-        date: dateStr,
-        checkIn,
-        checkOut,
-        status
-      });
+    records.push({
+      id: `AT${String(records.length + 1).padStart(6, '0')}`,
+      employeeId: schedule.employeeId,
+      date: schedule.date,
+      checkIn,
+      checkOut,
+      status,
+      source: 'auto',
+      reviewStatus: 'none',
+      history: []
     });
-  }
+  });
   return records;
 };
 

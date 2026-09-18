@@ -130,6 +130,14 @@ export interface Schedule {
   endTime: string;
 }
 
+export interface AttendanceLog {
+  id: string;
+  operator: string;
+  action: 'generate' | 'makeup' | 'update' | 'review';
+  detail: string;
+  time: string;
+}
+
 export interface Attendance {
   id: string;
   employeeId: string;
@@ -137,6 +145,12 @@ export interface Attendance {
   checkIn: string;
   checkOut: string;
   status: 'present' | 'absent' | 'late' | 'leave';
+  source: 'auto' | 'makeup' | 'manual';
+  note?: string;
+  reviewStatus: 'none' | 'pending' | 'approved';
+  updatedBy?: string;
+  updatedAt?: string;
+  history: AttendanceLog[];
 }
 
 export interface Review {

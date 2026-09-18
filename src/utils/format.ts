@@ -95,6 +95,9 @@ export const getStatusText = (status: string): string => {
     mild: '轻度',
     moderate: '中度',
     severe: '重度',
+    auto: '自动',
+    makeup: '补卡',
+    manual: '手动',
     bronze: '青铜',
     silver: '白银',
     gold: '黄金',
@@ -126,4 +129,23 @@ export const getShiftColor = (shift: string): string => {
     overtime: '#ff7875'
   };
   return colors[shift] || '#d9d9d9';
+};
+
+export const getReviewStatusText = (status: string): string => {
+  const texts: Record<string, string> = {
+    none: '—',
+    pending: '待审核',
+    approved: '已审核'
+  };
+  return texts[status] || status;
+};
+
+export const getAttendanceActionText = (action: string): string => {
+  const texts: Record<string, string> = {
+    generate: '生成',
+    makeup: '补打卡',
+    update: '修改',
+    review: '审核'
+  };
+  return texts[action] || action;
 };
