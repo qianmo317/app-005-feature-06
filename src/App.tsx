@@ -11,6 +11,7 @@ import ServiceList from "./pages/services/list";
 import PackageList from "./pages/services/packages";
 import AppointmentCalendar from "./pages/appointments/calendar";
 import EmployeeSchedule from "./pages/schedules";
+import AttendancePage from "./pages/attendance";
 import EmployeeList from "./pages/employees/list";
 import "./styles/global.less";
 
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="/packages" element={<PackageList />} />
               <Route path="/appointments" element={<AppointmentCalendar />} />
               <Route path="/schedules" element={<EmployeeSchedule />} />
+              <Route path="/attendance" element={<AttendancePage />} />
               <Route path="/employees" element={<EmployeeList />} />
             </Routes>
           </MainLayout>

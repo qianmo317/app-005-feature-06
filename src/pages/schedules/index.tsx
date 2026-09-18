@@ -23,14 +23,16 @@ import {
   UserOutlined
 } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../../store';
 import { updateSchedule } from '../../store';
 import type { Schedule } from '../../types';
-import { formatDate, getStatusText, getStatusColor, getShiftColor, generateId } from '../../utils/format';
+import { getStatusText, getShiftColor, getAttendanceStatusText, getAttendanceStatusColor, generateId } from '../../utils/format';
 import dayjs from 'dayjs';
 
 const EmployeeSchedule: React.FC = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const state = useSelector((state: RootState) => state.app);
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -216,7 +218,16 @@ const EmployeeSchedule: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} md={12}>
-          <Card className="card-wrapper" title="今日考勤" bordered={false}>
+          <Card
+            className="card-wrapper"
+            title="今日考勤"
+            bordered={false}
+            extra={
+              <Button type="link" size="small" onClick={() => navigate('/attendance')}>
+                考勤管理
+              </Button>
+            }
+          >
             {activeEmployees.map((employee) => {
               const todayAttendance = state.attendance.find(
                 (a) => a.employeeId === employee.id && a.date === dayjs().format('YYYY-MM-DD')
@@ -238,9 +249,10 @@ const EmployeeSchedule: React.FC = () => {
                   </Space>
                   {todayAttendance ? (
                     <Space>
-                      <Tag color={getStatusColor(todayAttendance.status)}>
-                        {getStatusText(todayAttendance.status)}
+                      <Tag color={getAttendanceStatusColor(todayAttendance.status)}>
+                        {getAttendanceStatusText(todayAttendance.status)}
                       </Tag>
+                      {todayAttendance.makeup && <Tag color="purple">补卡</Tag>}
                       {todayAttendance.checkIn !== '--' && (
                         <span style={{ fontSize: 12, color: '#8c8c8c' }}>
                           {todayAttendance.checkIn}

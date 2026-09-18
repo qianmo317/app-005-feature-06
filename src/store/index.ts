@@ -34,6 +34,43 @@ import {
   mockCommissions,
   mockWaitList
 } from '../mock';
+import { formatDate, generateId } from '../utils/format';
+
+// 需要考勤的岗位：美容师与技师
+const ATTENDANCE_ROLES = ['beautician', 'technician'];
+
+// 同一天同一个人只保留一条考勤
+const dedupeAttendance = (records: Attendance[]): Attendance[] => {
+  const seen = new Set<string>();
+  return records.filter((r) => {
+    const key = `${r.employeeId}_${r.date}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+// 为指定日期当班（非休息）的美容师/技师各生成一条考勤，已存在的跳过
+const ensureAttendanceForDate = (state: AppState, dateStr: string) => {
+  const today = formatDate(new Date());
+  state.schedules
+    .filter((s) => s.date === dateStr && s.shiftType !== 'off')
+    .forEach((s) => {
+      const employee = state.employees.find((e) => e.id === s.employeeId);
+      if (!employee || employee.status !== 'active' || !ATTENDANCE_ROLES.includes(employee.role)) return;
+      const exists = state.attendance.some((a) => a.employeeId === s.employeeId && a.date === dateStr);
+      if (!exists) {
+        state.attendance.unshift({
+          id: generateId(),
+          employeeId: s.employeeId,
+          date: dateStr,
+          checkIn: '--',
+          checkOut: '--',
+          status: dateStr < today ? 'absent' : 'pending'
+        });
+      }
+    });
+};
 
 interface AppState {
   customers: Customer[];
@@ -57,6 +94,7 @@ interface AppState {
 const STORAGE_KEY = 'app_state';
 
 const loadState = (): AppState => {
+  let state: AppState | null = null;
   try {
     const saved = storage.get<AppState>(STORAGE_KEY);
     if (saved && saved.initialized) {
@@ -66,7 +104,7 @@ const loadState = (): AppState => {
         const b64 = firstCustomer.avatar.replace('data:image/svg+xml;base64,', '');
         try {
           atob(b64);
-          return saved;
+          state = saved;
         } catch (e) {
           console.log('Detected corrupted data, regenerating...');
           storage.clear();
@@ -77,32 +115,40 @@ const loadState = (): AppState => {
     console.log('Loading fresh data...');
   }
 
-  const customers = mockCustomers();
-  const customerIds = customers.map(c => c.id);
-  const services = mockServices() as Service[];
-  const serviceIds = services.map(s => s.id);
-  const employees = mockEmployees() as Employee[];
-  const employeeIds = employees.map(e => e.id);
-  const packages = mockPackages() as Package[];
+  if (!state) {
+    const customers = mockCustomers();
+    const customerIds = customers.map(c => c.id);
+    const services = mockServices() as Service[];
+    const serviceIds = services.map(s => s.id);
+    const employees = mockEmployees() as Employee[];
+    const employeeIds = employees.map(e => e.id);
+    const packages = mockPackages() as Package[];
 
-  return {
-    customers,
-    skinAnalyses: mockSkinAnalyses(customerIds),
-    allergies: mockAllergies(customerIds),
-    memberships: mockMemberships(customerIds),
-    services,
-    packages,
-    packageItems: mockPackageItems(packages),
-    employees,
-    appointments: mockAppointments(customerIds, serviceIds, employeeIds),
-    serviceRecords: mockServiceRecords(customerIds, serviceIds, employeeIds),
-    schedules: mockSchedules(employeeIds),
-    reviews: mockReviews(customerIds, employeeIds, serviceIds),
-    attendance: mockAttendance(employeeIds),
-    commissions: mockCommissions(employeeIds),
-    waitList: mockWaitList(customerIds, serviceIds),
-    initialized: true
-  };
+    state = {
+      customers,
+      skinAnalyses: mockSkinAnalyses(customerIds),
+      allergies: mockAllergies(customerIds),
+      memberships: mockMemberships(customerIds),
+      services,
+      packages,
+      packageItems: mockPackageItems(packages),
+      employees,
+      appointments: mockAppointments(customerIds, serviceIds, employeeIds),
+      serviceRecords: mockServiceRecords(customerIds, serviceIds, employeeIds),
+      schedules: mockSchedules(employeeIds),
+      reviews: mockReviews(customerIds, employeeIds, serviceIds),
+      attendance: mockAttendance(employeeIds),
+      commissions: mockCommissions(employeeIds),
+      waitList: mockWaitList(customerIds, serviceIds),
+      initialized: true
+    };
+  }
+
+  // 考勤数据规整：同人同日去重，并为当天当班的美容师/技师生成考勤
+  state.attendance = dedupeAttendance(state.attendance);
+  ensureAttendanceForDate(state, formatDate(new Date()));
+  storage.set(STORAGE_KEY, state);
+  return state;
 };
 
 const initialState: AppState = loadState();
@@ -210,6 +256,31 @@ const appSlice = createSlice({
       }
       saveState(state);
     },
+    generateDailyAttendance: (state, action: PayloadAction<string>) => {
+      ensureAttendanceForDate(state, action.payload);
+      saveState(state);
+    },
+    // 补打卡/改状态共用：按员工+日期唯一，存在则覆盖，否则新增
+    upsertAttendance: (state, action: PayloadAction<Attendance>) => {
+      const index = state.attendance.findIndex(
+        a => a.employeeId === action.payload.employeeId && a.date === action.payload.date
+      );
+      if (index !== -1) {
+        state.attendance[index] = { ...action.payload, id: state.attendance[index].id };
+      } else {
+        state.attendance.unshift(action.payload);
+      }
+      saveState(state);
+    },
+    reviewAttendance: (state, action: PayloadAction<{ id: string; reviewer: string }>) => {
+      const record = state.attendance.find(a => a.id === action.payload.id);
+      if (record) {
+        record.reviewStatus = 'approved';
+        record.updatedBy = action.payload.reviewer;
+        record.updatedAt = new Date().toISOString();
+        saveState(state);
+      }
+    },
     addWaitList: (state, action: PayloadAction<WaitList>) => {
       state.waitList.unshift(action.payload);
       saveState(state);
@@ -260,6 +331,9 @@ export const {
   addEmployee,
   updateEmployee,
   updateSchedule,
+  generateDailyAttendance,
+  upsertAttendance,
+  reviewAttendance,
   addWaitList,
   updateWaitList,
   deleteWaitList,

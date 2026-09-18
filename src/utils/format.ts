@@ -117,6 +117,28 @@ export const getStatusText = (status: string): string => {
   return texts[status] || status;
 };
 
+export const getAttendanceStatusText = (status: string): string => {
+  const texts: Record<string, string> = {
+    present: '出勤',
+    absent: '缺勤',
+    late: '迟到',
+    leave: '请假',
+    pending: '待打卡'
+  };
+  return texts[status] || status;
+};
+
+export const getAttendanceStatusColor = (status: string): string => {
+  const colors: Record<string, string> = {
+    present: 'green',
+    absent: 'red',
+    late: 'orange',
+    leave: 'blue',
+    pending: 'default'
+  };
+  return colors[status] || 'default';
+};
+
 export const getShiftColor = (shift: string): string => {
   const colors: Record<string, string> = {
     morning: '#69b1ff',

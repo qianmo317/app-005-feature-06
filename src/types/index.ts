@@ -136,7 +136,12 @@ export interface Attendance {
   date: string;
   checkIn: string;
   checkOut: string;
-  status: 'present' | 'absent' | 'late' | 'leave';
+  status: 'present' | 'absent' | 'late' | 'leave' | 'pending';
+  makeup?: boolean;
+  note?: string;
+  reviewStatus?: 'none' | 'pending' | 'approved';
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export interface Review {
